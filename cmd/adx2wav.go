@@ -25,21 +25,14 @@ var adx2wavCmd = &cobra.Command{
 	Use:   "adx2wav",
 	Short: "Converts ADX to WAV",
 	Long:  `Converts ADX to WAV`,
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		adxtools.Adx2Wav(args[0])
+		output, _ := cmd.Flags().GetString("output")
+		adxtools.Adx2Wav(args[0], output)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(adx2wavCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// adx2wavCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// adx2wavCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	adx2wavCmd.Flags().StringP("output", "o", "out.wav", "Output file name")
 }

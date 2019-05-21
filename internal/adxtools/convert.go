@@ -12,16 +12,16 @@ import (
 	"github.com/youpy/go-wav"
 )
 
-func Adx2Wav(fname string) {
+func Adx2Wav(inputFile string, outputFile string) {
 
 	// Open wav to write to
-	inFile, err := os.Create(fname)
+	outFile, err := os.Create(outputFile)
 	if err != nil {
 		fmt.Println(err)
 	}
 
 	// Open adx
-	outFile, err := os.Open("BGM_002.adx")
+	inFile, err := os.Open(inputFile)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -29,11 +29,11 @@ func Adx2Wav(fname string) {
 	defer inFile.Close()
 	defer outFile.Close()
 
-	writer := wav.NewWriter(inFile, 90000, 2, 44100, 16)
-
 	// Decode ADX header
 	adx := ADX{}
-	adx.ReadHeader("BGM_002.adx")
+	adx.ReadHeader(inputFile)
+
+	writer := wav.NewWriter(outFile, adx.totalSamples, 2, adx.sampleRate, 16)
 
 	// Calculate prediction coefficients
 	a := math.Sqrt(2) - math.Cos(2)*math.Pi*float64(adx.highpassFrequency)/float64(adx.sampleRate)
@@ -50,7 +50,7 @@ func Adx2Wav(fname string) {
 	// =========================
 	// DECODE ADX IGNORING LOOPS
 	// =========================
-	samplesNeeded := uint(30000)
+	samplesNeeded := uint(adx.totalSamples)
 	samplesPerBlock := uint((adx.blockSize - 2) * 8 / adx.sampleBitdepth)
 	scale := make([]int16, adx.channelCount)
 
@@ -67,12 +67,12 @@ func Adx2Wav(fname string) {
 		}
 
 		// Calculate start offset in bytes
-		start := (uint(adx.copyrightOffset) + 4 + uint(sampleIndex)/samplesPerBlock*uint(adx.blockSize)*uint(adx.channelCount)) // fix me
+		start := uint(adx.copyrightOffset) + 4 + uint(sampleIndex)/samplesPerBlock*uint(adx.blockSize)*uint(adx.channelCount)
 
 		for i := uint8(0); i < adx.channelCount; i++ {
 			scaleBytes := make([]byte, 2)
 			inFile.ReadAt(scaleBytes, int64(start+uint(adx.blockSize*i)))
-			scale[i] = int16(binary.BigEndian.Uint16(scaleBytes)) // fix me
+			scale[i] = int16(binary.BigEndian.Uint16(scaleBytes))
 		}
 
 		sampleEndOffset := sampleOffset + samplesCanGet
@@ -81,38 +81,52 @@ func Adx2Wav(fname string) {
 		for sampleOffset < sampleEndOffset {
 			fmt.Printf("SAMPLE: %d\n", sampleIndex)
 
+			outSamples := make([]int, adx.channelCount)
+
 			for i := uint8(0); i < adx.channelCount; i++ {
-				samplePrediction := coefficient[0]*float64(pastSamples[i*2+0]) + coefficient[1]*float64(pastSamples[i*2+1])
-
-				sampleErrorBytes := make([]byte, adx.sampleBitdepth)
+				// HARD CODE BITDEPTH 4
+				sampleErrorBytes := make([]byte, 1)
 				inFile.ReadAt(sampleErrorBytes, int64(start+(uint(adx.sampleBitdepth)*sampleOffset)/8+uint(adx.blockSize*i)))
-				sampleError := int32(binary.BigEndian.Uint32(sampleErrorBytes)) // fix me
-				// SIGN EXTEND????
-				sampleError *= int32(scale[i])
 
-				sample := sampleError + int32(samplePrediction)
+				sampleErrorNibbles := make([]byte, 2)
+				sampleErrorNibbles[0] = sampleErrorBytes[0] >> 4
+				sampleErrorNibbles[1] = sampleErrorBytes[0] & 0xF
 
-				pastSamples[i*2+1] = pastSamples[i*2+0]
-				pastSamples[i*2+0] = sample
+				for _, v := range sampleErrorNibbles {
+					samplePrediction := coefficient[0]*float64(pastSamples[i*2+0]) + coefficient[1]*float64(pastSamples[i*2+1])
 
-				if sample > 32767 {
-					sample = 32767
-				} else if sample < -32768 {
-					sample = -32768
+					// sign extend
+					sampleError := int32(v)
+					sampleError = (sampleError << 28) >> 28
+
+					sampleError *= int32(scale[i])
+
+					sample := sampleError + int32(samplePrediction)
+
+					pastSamples[i*2+1] = pastSamples[i*2+0]
+					pastSamples[i*2+0] = sample
+
+					if sample > 32767 {
+						sample = 32767
+					} else if sample < -32768 {
+						sample = -32768
+					}
+
+					// write buffer immediately for now
+					//fmt.Printf("%x %x\n", start, sampleOffset)
+					fmt.Printf("%d\n", sample)
+					outSamples[i] = int(sample)
 				}
 
-				// write buffer immediately for now
-				fmt.Printf("%x %x\n", start, sampleOffset)
-				fmt.Printf("%d\n", sampleErrorBytes)
-
+				// HARDCODE WRITE to 2CHANNEL BUFFER
 				buffer := make([]wav.Sample, 1)
-				buffer[0] = wav.Sample{[2]int{int(sample), int(sample)}}
+				buffer[0] = wav.Sample{[2]int{outSamples[0], outSamples[1]}}
 				writer.WriteSamples(buffer)
 			}
 
-			sampleOffset++
-			sampleIndex++
-			samplesNeeded--
+			sampleOffset += 2
+			sampleIndex += 2
+			samplesNeeded -= 2
 		}
 	}
 }
