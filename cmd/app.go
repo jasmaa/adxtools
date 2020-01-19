@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+
+	"github.com/jasmaa/adxtools/internal/adx"
 )
 
 const usage = `Usage: adxtools [COMMAND] [OPTIONS] input
@@ -37,6 +39,7 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Printf("adx2wav: %s, %v", *wavOut, adx2wavCmd.Args())
+		adx.Adx2Wav(adx2wavCmd.Args()[0], *wavOut)
 
 	case "wav2adx":
 		wav2adxCmd.Parse(os.Args[2:])

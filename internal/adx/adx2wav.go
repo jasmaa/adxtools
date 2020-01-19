@@ -10,7 +10,6 @@ import (
 	"github.com/youpy/go-wav"
 )
 
-// Adx2Wav converts ADX input to WAV output
 func Adx2Wav(inputFile string, outputFile string) {
 
 	// Open wav to write to
@@ -35,7 +34,7 @@ func Adx2Wav(inputFile string, outputFile string) {
 	writer := wav.NewWriter(outFile, adx.totalSamples, 2, adx.sampleRate, 16)
 
 	// Calculate prediction coefficients
-	a := math.Sqrt(2) - math.Cos(2)*math.Pi*float64(adx.highpassFrequency)/float64(adx.sampleRate)
+	a := math.Sqrt(2) - math.Cos(2*math.Pi*float64(adx.highpassFrequency)/float64(adx.sampleRate))
 	b := math.Sqrt(2) - 1
 	c := (a - math.Sqrt((a+b)*(a-b))) / b
 
@@ -130,6 +129,10 @@ func Adx2Wav(inputFile string, outputFile string) {
 	}
 }
 
+func Wav2Adx(fname string) {
+	return
+}
+
 // Read in wav samples
 func readWavSamples(fname string) {
 
@@ -138,9 +141,9 @@ func readWavSamples(fname string) {
 		fmt.Println(err)
 	}
 
-	defer file.Close()
-
 	reader := wav.NewReader(file)
+
+	defer file.Close()
 
 	// Read samples
 	var count = 0
