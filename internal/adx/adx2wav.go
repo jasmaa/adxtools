@@ -1,6 +1,4 @@
-// Functions for converting
-
-package adxtools
+package adx
 
 import (
 	"encoding/binary"
@@ -12,6 +10,7 @@ import (
 	"github.com/youpy/go-wav"
 )
 
+// Adx2Wav converts ADX input to WAV output
 func Adx2Wav(inputFile string, outputFile string) {
 
 	// Open wav to write to
@@ -30,8 +29,8 @@ func Adx2Wav(inputFile string, outputFile string) {
 	defer outFile.Close()
 
 	// Decode ADX header
-	adx := ADX{}
-	adx.ReadHeader(inputFile)
+	adx := header{}
+	adx.Read(inputFile)
 
 	writer := wav.NewWriter(outFile, adx.totalSamples, 2, adx.sampleRate, 16)
 
@@ -131,10 +130,6 @@ func Adx2Wav(inputFile string, outputFile string) {
 	}
 }
 
-func Wav2Adx(fname string) {
-	return
-}
-
 // Read in wav samples
 func readWavSamples(fname string) {
 
@@ -143,9 +138,9 @@ func readWavSamples(fname string) {
 		fmt.Println(err)
 	}
 
-	reader := wav.NewReader(file)
-
 	defer file.Close()
+
+	reader := wav.NewReader(file)
 
 	// Read samples
 	var count = 0
