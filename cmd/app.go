@@ -34,20 +34,23 @@ func main() {
 	case "adx2wav":
 		adx2wavCmd.Parse(os.Args[2:])
 		rest := adx2wavCmd.Args()
+
 		if len(rest) < 1 {
 			adx2wavCmd.Usage()
 			os.Exit(1)
 		}
-		fmt.Printf("adx2wav: %s, %v", *wavOut, adx2wavCmd.Args())
+
 		adx.Adx2Wav(adx2wavCmd.Args()[0], *wavOut)
 
 	case "wav2adx":
 		wav2adxCmd.Parse(os.Args[2:])
 		rest := adx2wavCmd.Args()
+
 		if len(rest) < 1 {
 			wav2adxCmd.Usage()
 			os.Exit(1)
 		}
+
 		fmt.Printf("wav2adx: %s, %v", *adxOut, wav2adxCmd.Args())
 
 	default:
