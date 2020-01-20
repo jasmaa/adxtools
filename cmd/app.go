@@ -44,7 +44,7 @@ func main() {
 
 	case "wav2adx":
 		wav2adxCmd.Parse(os.Args[2:])
-		rest := adx2wavCmd.Args()
+		rest := wav2adxCmd.Args()
 
 		if len(rest) < 1 {
 			wav2adxCmd.Usage()

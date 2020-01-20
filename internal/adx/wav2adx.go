@@ -3,16 +3,15 @@ package adx
 import (
 	"encoding/binary"
 	"fmt"
-	"io"
 	"math"
 	"os"
 	"time"
 
-	"github.com/youpy/go-wav"
+	wav "github.com/youpy/go-wav"
 )
 
-// Adx2Wav converts ADX input to WAV output ignoring loops
-func Adx2Wav(inPath string, outPath string) {
+// Wav2Adx converts WAV input to ADX output
+func Wav2Adx(inPath string, outPath string) {
 
 	startTime := time.Now()
 
@@ -130,55 +129,4 @@ func Adx2Wav(inPath string, outPath string) {
 		writer.WriteSamples(buffer)
 	}
 	fmt.Printf("Elapsed: %v seconds", time.Now().Sub(startTime).Seconds())
-}
-
-// Read in wav samples
-func readWavSamples(fname string) {
-
-	file, err := os.Open(fname)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	reader := wav.NewReader(file)
-
-	defer file.Close()
-
-	// Read samples
-	var count = 0
-	for {
-		samples, err := reader.ReadSamples()
-		if err == io.EOF {
-			break
-		}
-
-		for _, sample := range samples {
-			fmt.Printf("L/R: %d/%d\n", reader.IntValue(sample, 0), reader.IntValue(sample, 1))
-			count++
-		}
-	}
-
-	fmt.Printf("%d", count)
-}
-
-func writeWavSamples(fname string) {
-	file, err := os.Create(fname)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	defer file.Close()
-
-	writer := wav.NewWriter(file, 2000, 2, 44100, 16)
-
-	samples := make([]wav.Sample, 16)
-	samples[0] = wav.Sample{[2]int{3000, 4000}}
-
-	samples2 := make([]wav.Sample, 16)
-	samples2[0] = wav.Sample{[2]int{8000, 0}}
-
-	writer.WriteSamples(samples)
-	writer.WriteSamples(samples2)
-
-	fmt.Println("Wrote samples: %v", samples)
 }
