@@ -47,7 +47,7 @@ func Adx2Wav(inPath string, outPath string) {
 	coefficient[1] = -(c * c)
 
 	pastSamples := make([]int32, 2*adx.channelCount)
-	sampleIndex := uint(0)
+	sampleIndex := uint32(0)
 
 	samplesNeeded := adx.totalSamples // TODO: Make sure sample number is even?
 	samplesPerBlock := (adx.blockSize - 2) * 8 / adx.sampleBitdepth
@@ -57,15 +57,15 @@ func Adx2Wav(inPath string, outPath string) {
 	for samplesNeeded > 0 && sampleIndex < adx.totalSamples {
 
 		// Calculate number of samples left
-		sampleOffset := sampleIndex % samplesPerBlock
-		samplesCanGet := samplesPerBlock - sampleOffset
+		sampleOffset := sampleIndex % uint32(samplesPerBlock)
+		samplesCanGet := uint32(samplesPerBlock) - sampleOffset
 
 		// Get start offset and scale
-		start := adx.copyrightOffset + 4 + sampleIndex/samplesPerBlock*adx.blockSize*adx.channelCount
+		start := uint32(adx.copyrightOffset) + 4 + sampleIndex/uint32(samplesPerBlock)*uint32(adx.blockSize)*uint32(adx.channelCount)
 
-		for i := uint(0); i < adx.channelCount; i++ {
+		for i := byte(0); i < adx.channelCount; i++ {
 			scaleBytes := make([]byte, 2)
-			inFile.Seek(int64(start+adx.blockSize*i), 0)
+			inFile.Seek(int64(start+uint32(adx.blockSize)*uint32(i)), 0)
 			inFile.Read(scaleBytes)
 			scale[i] = int32(binary.BigEndian.Uint16(scaleBytes))
 		}
@@ -81,11 +81,11 @@ func Adx2Wav(inPath string, outPath string) {
 
 			outSamples := make([]int, adx.channelCount)
 
-			for i := uint(0); i < adx.channelCount; i++ {
+			for i := byte(0); i < adx.channelCount; i++ {
 
 				// HARD CODE: BITDEPTH 4, do two samples at once
 				sampleErrorBytes := make([]byte, 1)
-				inFile.Seek(int64(start+(adx.sampleBitdepth*sampleOffset)/8+adx.blockSize*i), 0)
+				inFile.Seek(int64(start+(uint32(adx.sampleBitdepth)*sampleOffset)/8+uint32(adx.blockSize)*uint32(i)), 0)
 				inFile.Read(sampleErrorBytes)
 
 				sampleErrorNibbles := make([]byte, 2)
@@ -96,7 +96,7 @@ func Adx2Wav(inPath string, outPath string) {
 
 					samplePrediction := coefficient[0]*float64(pastSamples[i*2+0]) + coefficient[1]*float64(pastSamples[i*2+1])
 
-					// Sign extend 28-bit to 32-bit signed int
+					// Sign extend 4-bit to 32-bit signed int
 					sampleError := int32(v)
 					sampleError = (sampleError << 28) >> 28
 
