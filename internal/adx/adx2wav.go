@@ -75,8 +75,9 @@ func Adx2Wav(inPath string, outPath string) {
 		bufferCount := 0
 		buffer := make([]wav.Sample, samplesCanGet)
 
-		// Decode samples
 		start += 2
+
+		// Decode samples
 		for sampleOffset < sampleEndOffset {
 
 			outSamples := make([]int, adx.channelCount)
