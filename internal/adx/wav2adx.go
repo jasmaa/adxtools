@@ -44,7 +44,6 @@ func Wav2Adx(inPath string, outPath string) {
 		sampleBitdepth:       4,
 		channelCount:         byte(format.NumChannels),
 		sampleRate:           format.SampleRate,
-		totalSamples:         uint32(90000), //temp
 		highpassFrequency:    500,
 		version:              3,
 		flags:                0,
@@ -57,7 +56,6 @@ func Wav2Adx(inPath string, outPath string) {
 		loopEndSampleIndex:   0,
 		loopEndByteIndex:     0,
 	}
-	adx.Write(outPath)
 
 	// Calculate prediction coefficients and init structs
 	a := math.Sqrt(2) - math.Cos(2*math.Pi*float64(adx.highpassFrequency)/float64(adx.sampleRate))
@@ -85,7 +83,6 @@ func Wav2Adx(inPath string, outPath string) {
 		samplesCanWrite := byte(len(buffer))
 
 		// Get offset and start position
-		sampleOffset := sampleIndex % uint32(samplesPerBlock)
 		start := uint32(adx.copyrightOffset) + 4 + sampleIndex/uint32(samplesPerBlock)*uint32(adx.blockSize)*uint32(adx.channelCount)
 
 		unscaledSampleErrorNibbles := make([]int32, uint32(adx.channelCount)*uint32(samplesCanWrite)) // convert to be pedantic
@@ -117,29 +114,17 @@ func Wav2Adx(inPath string, outPath string) {
 					unscaledSampleError := sample - int32(samplePrediction)
 
 					unscaledSampleErrorNibbles[i*offset+i] = unscaledSampleError
-					/*
-						// Get nibble
-						sampleErrorNibbles[i] = byte(sampleError)
-					*/
 
 					// Update past samples
 					pastSamples[i*2+1] = pastSamples[i*2+0]
 					pastSamples[i*2+0] = sample
 				}
-
-				/*
-					sampleErrorBytes := []byte{(sampleErrorNibbles[0] << 4) | (sampleErrorNibbles[1] & 0xF)}
-
-					inFile.Seek(int64(start+(uint32(adx.sampleBitdepth)*sampleOffset)/8+uint32(adx.blockSize)*uint32(i)), 0)
-					inFile.Write(sampleErrorBytes)
-				*/
 			}
 
-			sampleOffset += 2
-			sampleIndex += 2
+			sampleIndex++
 		}
 
-		// TODO: generate sampleError and scale here
+		// Generate scale and sample error bytes
 		scale := generateScale(&adx, unscaledSampleErrorNibbles)
 		sampleErrorBytes := generateSampleError(&adx, unscaledSampleErrorNibbles, scale)
 
@@ -155,7 +140,17 @@ func Wav2Adx(inPath string, outPath string) {
 
 		outFile.Seek(int64(start), 0)
 		outFile.Write(sampleErrorBytes)
+
+		//fmt.Println(len(sampleErrorBytes))
 	}
+
+	// Write metadata
+	adx.totalSamples = sampleIndex
+	adx.Write(outFile)
+
+	outFile.Seek(int64(adx.copyrightOffset-2), 0)
+	outFile.Write([]byte("(c)CRI"))
+
 	fmt.Printf("Elapsed: %v seconds", time.Now().Sub(startTime).Seconds())
 }
 
@@ -182,6 +177,9 @@ func generateScale(adx *header, unscaledSampleErrorBytes []int32) []uint16 {
 
 		// Calculate scale
 		scale[i] = uint16(maxAbsErr / 8)
+		if scale[i] == 0 {
+			scale[i] = 1
+		}
 	}
 
 	return scale

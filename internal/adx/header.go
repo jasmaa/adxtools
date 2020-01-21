@@ -26,17 +26,12 @@ type header struct {
 }
 
 // Read reads ADX file header
-func (header *header) Read(fname string) {
+func (header *header) Read(r *os.File) {
 
 	buffer := make([]byte, 0x40)
-	f, err := os.Open(fname)
-	if err != nil {
-		panic(err)
-	}
 
-	defer f.Close()
-
-	binary.Read(f, binary.LittleEndian, buffer)
+	r.Seek(0, 0)
+	r.Read(buffer)
 
 	// Check magic
 	if !(buffer[0x0] == 0x80 && buffer[0x1] == 0x00) {
@@ -76,15 +71,9 @@ func (header *header) Read(fname string) {
 }
 
 // Write writes ADX file header
-func (header *header) Write(fname string) {
+func (header *header) Write(w *os.File) {
 
 	buffer := make([]byte, 0x40)
-	f, err := os.Create(fname)
-	if err != nil {
-		panic(err)
-	}
-
-	defer f.Close()
 
 	// Magic
 	buffer[0x0] = 0x80
@@ -129,5 +118,6 @@ func (header *header) Write(fname string) {
 		binary.BigEndian.PutUint32(buffer[0x34:0x38], header.loopEndByteIndex)
 	}
 
-	binary.Write(f, binary.LittleEndian, buffer)
+	w.Seek(0, 0)
+	w.Write(buffer)
 }

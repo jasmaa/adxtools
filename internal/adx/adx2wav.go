@@ -33,7 +33,7 @@ func Adx2Wav(inPath string, outPath string) {
 
 	// Decode ADX header
 	adx := header{}
-	adx.Read(inPath)
+	adx.Read(inFile)
 
 	writer := wav.NewWriter(outFile, uint32(adx.totalSamples), 2, uint32(adx.sampleRate), 16)
 
