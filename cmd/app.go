@@ -51,7 +51,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		fmt.Printf("wav2adx: %s, %v", *adxOut, wav2adxCmd.Args())
+		fmt.Printf("wav2adx: %s, %v\n", *adxOut, wav2adxCmd.Args())
 		adx.Wav2Adx(wav2adxCmd.Args()[0], *adxOut)
 
 	default:

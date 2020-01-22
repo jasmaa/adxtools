@@ -36,6 +36,8 @@ func Wav2Adx(inPath string, outPath string) {
 		panic(err)
 	}
 
+	fmt.Println(format.BitsPerSample)
+
 	// Encode ADX header
 	adx := header{
 		copyrightOffset:      404, // ???
@@ -75,54 +77,41 @@ func Wav2Adx(inPath string, outPath string) {
 	for {
 
 		bufferCount := 0
-		buffer, err := reader.ReadSamples(uint32(samplesPerBlock))
+		buffer, err := reader.ReadSamples(uint32(samplesPerBlock)) // Read in a frame of samples
 		if err != nil {
 			break
 		}
 
-		samplesCanWrite := byte(len(buffer))
-
 		// Get offset and start position
 		start := uint32(adx.copyrightOffset) + 4 + sampleIndex/uint32(samplesPerBlock)*uint32(adx.blockSize)*uint32(adx.channelCount)
 
-		unscaledSampleErrorNibbles := make([]int32, uint32(adx.channelCount)*uint32(samplesCanWrite)) // convert to be pedantic
+		unscaledSampleErrorNibbles := make([]int32, uint32(adx.channelCount)*uint32(samplesPerBlock)) // convert to be pedantic
 
 		// Encode samples
-		for sampleOffset := byte(0); sampleOffset < samplesCanWrite; sampleOffset++ {
+		for sampleOffset := byte(0); sampleOffset < samplesPerBlock; sampleOffset++ {
 
-			// HARD CODE: Write to 2 channel buffer
 			inSamples := buffer[bufferCount].Values
 			bufferCount++
 
-			for i := byte(0); i < adx.channelCount; i++ {
+			// Process for each channel in sample
+			for i, v := range inSamples {
 
-				for _, v := range inSamples {
+				samplePrediction := coefficient[0]*float64(pastSamples[i*2+0]) + coefficient[1]*float64(pastSamples[i*2+1])
+				sample := int32(v)
 
-					samplePrediction := coefficient[0]*float64(pastSamples[i*2+0]) + coefficient[1]*float64(pastSamples[i*2+1])
+				unscaledSampleErrorNibbles[samplesPerBlock*byte(i)+sampleOffset] = sample - int32(samplePrediction)
 
-					sample := int32(v)
-
-					// Clamp sample within 16-bit bit depth range
-					if sample > 32767 {
-						sample = 32767
-					} else if sample < -32768 {
-						sample = -32768
-					}
-
-					unscaledSampleErrorNibbles[adx.channelCount*sampleOffset+i] = sample - int32(samplePrediction)
-
-					// Update past samples
-					pastSamples[i*2+1] = pastSamples[i*2+0]
-					pastSamples[i*2+0] = sample
-				}
+				// Update past samples
+				pastSamples[i*2+1] = pastSamples[i*2+0]
+				pastSamples[i*2+0] = sample
 			}
 
 			sampleIndex++
 		}
 
 		// Generate scale and sample error bytes
-		scale := generateScale(&adx, unscaledSampleErrorNibbles)
-		sampleErrorBytes := generateSampleError(&adx, unscaledSampleErrorNibbles, scale)
+		scale := generateScale(&adx, samplesPerBlock, unscaledSampleErrorNibbles)
+		sampleErrorBytes := generateSampleError(&adx, samplesPerBlock, unscaledSampleErrorNibbles, scale)
 
 		// Write block
 		for i := byte(0); i < adx.channelCount; i++ {
@@ -130,12 +119,11 @@ func Wav2Adx(inPath string, outPath string) {
 			binary.BigEndian.PutUint16(scaleBytes, scale[i])
 			outFile.Seek(int64(start+uint32(adx.blockSize)*uint32(i)), 0)
 			outFile.Write(scaleBytes)
+
+			sectionLen := len(sampleErrorBytes) / int(adx.channelCount)
+			outFile.Seek(int64(start+2+uint32(adx.blockSize)*uint32(i)), 0)
+			outFile.Write(sampleErrorBytes[sectionLen*int(i) : sectionLen*int(i+1)])
 		}
-
-		start += 2
-
-		outFile.Seek(int64(start), 0)
-		outFile.Write(sampleErrorBytes)
 	}
 
 	// Write metadata
@@ -149,17 +137,17 @@ func Wav2Adx(inPath string, outPath string) {
 }
 
 // Generates scale based on unscaled samples
-func generateScale(adx *header, unscaledSampleErrorBytes []int32) []uint16 {
+func generateScale(adx *header, samplesPerBlock byte, unscaledSampleErrorNibbles []int32) []uint16 {
 
 	scale := make([]uint16, adx.channelCount)
 
 	for i := byte(0); i < adx.channelCount; i++ {
 
 		// Get max reach
-		maxAbsErr := unscaledSampleErrorBytes[i]
-		for j := byte(0); j < byte(len(unscaledSampleErrorBytes))/adx.channelCount; j++ {
+		maxAbsErr := unscaledSampleErrorNibbles[samplesPerBlock*i]
+		for j := byte(0); j < samplesPerBlock; j++ {
 
-			v := unscaledSampleErrorBytes[j*adx.channelCount+i]
+			v := unscaledSampleErrorNibbles[samplesPerBlock*i+j]
 			if v < 0 {
 				v = -v
 			}
@@ -180,25 +168,25 @@ func generateScale(adx *header, unscaledSampleErrorBytes []int32) []uint16 {
 }
 
 // Scales error bytes
-func generateSampleError(adx *header, unscaledSampleErrorBytes []int32, scale []uint16) []byte {
-
-	sampleErrorNibbles := make([]byte, len(unscaledSampleErrorBytes))
+func generateSampleError(adx *header, samplesPerBlock byte, unscaledSampleErrorNibbles []int32, scale []uint16) []byte {
 
 	// Scale to 4-bit bitdepth
+	sampleErrorNibbles := make([]byte, len(unscaledSampleErrorNibbles))
 	for i := byte(0); i < adx.channelCount; i++ {
-		for j := byte(0); j < byte(len(unscaledSampleErrorBytes))/adx.channelCount; j++ {
+		for j := byte(0); j < samplesPerBlock; j++ {
 
-			sampleErrorNibbles[j*adx.channelCount+i] = byte(unscaledSampleErrorBytes[j*adx.channelCount+i] / int32(scale[i]))
+			scaledError := byte(unscaledSampleErrorNibbles[samplesPerBlock*i+j] / int32(scale[i]))
+			fmt.Printf("%v\n", scaledError)
+			sampleErrorNibbles[samplesPerBlock*i+j] = scaledError
 		}
 	}
 
 	// Merge nibbles
 	// TODO: make it work with odd??
-	sampleErrorBytes := make([]byte, len(unscaledSampleErrorBytes)/int(adx.channelCount))
-	count := 0
-	for i := 0; i < len(sampleErrorBytes); i += 2 {
-		sampleErrorBytes[count] = (sampleErrorNibbles[i+0] << 4) | (sampleErrorNibbles[i+1] & 0xF)
-		count++
+	sampleErrorBytes := make([]byte, len(sampleErrorNibbles)/2)
+	for i := 0; i < len(sampleErrorNibbles); i += 2 {
+
+		sampleErrorBytes[i/2] = (sampleErrorNibbles[i+0] << 4) | (sampleErrorNibbles[i+1] & 0xF)
 	}
 
 	return sampleErrorBytes
