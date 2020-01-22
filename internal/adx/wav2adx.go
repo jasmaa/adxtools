@@ -38,7 +38,7 @@ func Wav2Adx(inPath string, outPath string) {
 
 	// Encode ADX header
 	adx := header{
-		copyrightOffset:      404, //???
+		copyrightOffset:      404, // ???
 		encodingType:         0x03,
 		blockSize:            18,
 		sampleBitdepth:       4,
@@ -88,15 +88,13 @@ func Wav2Adx(inPath string, outPath string) {
 		unscaledSampleErrorNibbles := make([]int32, uint32(adx.channelCount)*uint32(samplesCanWrite)) // convert to be pedantic
 
 		// Encode samples
-		for offset := byte(0); offset < samplesCanWrite; offset++ {
+		for sampleOffset := byte(0); sampleOffset < samplesCanWrite; sampleOffset++ {
 
 			// HARD CODE: Write to 2 channel buffer
 			inSamples := buffer[bufferCount].Values
 			bufferCount++
 
 			for i := byte(0); i < adx.channelCount; i++ {
-
-				//sampleErrorNibbles := make([]byte, 2)
 
 				for _, v := range inSamples {
 
@@ -111,9 +109,7 @@ func Wav2Adx(inPath string, outPath string) {
 						sample = -32768
 					}
 
-					unscaledSampleError := sample - int32(samplePrediction)
-
-					unscaledSampleErrorNibbles[i*offset+i] = unscaledSampleError
+					unscaledSampleErrorNibbles[adx.channelCount*sampleOffset+i] = sample - int32(samplePrediction)
 
 					// Update past samples
 					pastSamples[i*2+1] = pastSamples[i*2+0]
@@ -140,8 +136,6 @@ func Wav2Adx(inPath string, outPath string) {
 
 		outFile.Seek(int64(start), 0)
 		outFile.Write(sampleErrorBytes)
-
-		//fmt.Println(len(sampleErrorBytes))
 	}
 
 	// Write metadata

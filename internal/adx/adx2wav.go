@@ -80,7 +80,7 @@ func Adx2Wav(inPath string, outPath string) {
 		// Decode samples
 		for sampleOffset < sampleEndOffset {
 
-			outSamples := make([]int, adx.channelCount)
+			outSamples := make([]int, 2*adx.channelCount)
 
 			for i := byte(0); i < adx.channelCount; i++ {
 
@@ -93,7 +93,7 @@ func Adx2Wav(inPath string, outPath string) {
 				sampleErrorNibbles[0] = sampleErrorBytes[0] >> 4
 				sampleErrorNibbles[1] = sampleErrorBytes[0] & 0xF
 
-				for _, v := range sampleErrorNibbles {
+				for nibbleIdx, v := range sampleErrorNibbles {
 
 					samplePrediction := coefficient[0]*float64(pastSamples[i*2+0]) + coefficient[1]*float64(pastSamples[i*2+1])
 
@@ -115,13 +115,14 @@ func Adx2Wav(inPath string, outPath string) {
 						sample = -32768
 					}
 
-					outSamples[i] = int(sample)
+					outSamples[int(i)*2+nibbleIdx] = int(sample)
 				}
-
-				// HARD CODE: Write to 2 channel buffer
-				buffer[bufferCount] = wav.Sample{[2]int{outSamples[0], outSamples[1]}}
-				bufferCount++
 			}
+
+			// HARD CODE: Write to 2 channel buffer
+			buffer[bufferCount+0] = wav.Sample{[2]int{outSamples[0], outSamples[2]}}
+			buffer[bufferCount+1] = wav.Sample{[2]int{outSamples[1], outSamples[3]}}
+			bufferCount += 2
 
 			sampleOffset += 2
 			sampleIndex += 2
