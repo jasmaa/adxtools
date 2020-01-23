@@ -36,8 +36,6 @@ func Wav2Adx(inPath string, outPath string) {
 		panic(err)
 	}
 
-	fmt.Println(format.BitsPerSample)
-
 	// Encode ADX header
 	adx := header{
 		copyrightOffset:      404, // ???
@@ -123,7 +121,14 @@ func Wav2Adx(inPath string, outPath string) {
 			sectionLen := len(sampleErrorBytes) / int(adx.channelCount)
 			outFile.Seek(int64(start+2+uint32(adx.blockSize)*uint32(i)), 0)
 			outFile.Write(sampleErrorBytes[sectionLen*int(i) : sectionLen*int(i+1)])
+
+			//fmt.Println(scale)
+			//fmt.Println(sampleErrorBytes[sectionLen*int(i) : sectionLen*int(i+1)])
 		}
+
+		fmt.Println(scale)
+		fmt.Println(generateSampleErrorNibbles(&adx, samplesPerBlock, unscaledSampleErrorNibbles, scale))
+		fmt.Println("---")
 	}
 
 	// Write metadata
@@ -175,8 +180,12 @@ func generateSampleError(adx *header, samplesPerBlock byte, unscaledSampleErrorN
 	for i := byte(0); i < adx.channelCount; i++ {
 		for j := byte(0); j < samplesPerBlock; j++ {
 
-			scaledError := byte(unscaledSampleErrorNibbles[samplesPerBlock*i+j] / int32(scale[i]))
-			fmt.Printf("%v\n", scaledError)
+			scaledError := byte(0)
+			if scale[i] != 0 {
+				scaledError = byte(unscaledSampleErrorNibbles[samplesPerBlock*i+j] / int32(scale[i]))
+			}
+			//fmt.Printf("%v\n", unscaledSampleErrorNibbles[samplesPerBlock*i+j]/int32(scale[i]))
+
 			sampleErrorNibbles[samplesPerBlock*i+j] = scaledError
 		}
 	}

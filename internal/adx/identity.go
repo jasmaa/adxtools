@@ -6,12 +6,9 @@ import (
 	"math"
 	"os"
 	"time"
-
-	"github.com/youpy/go-wav"
 )
 
-// Adx2Wav converts ADX input to WAV output ignoring loops
-func Adx2Wav(inPath string, outPath string) {
+func AdxIdentity(inPath string, outPath string) {
 
 	startTime := time.Now()
 
@@ -33,7 +30,10 @@ func Adx2Wav(inPath string, outPath string) {
 	adx := header{}
 	adx.Read(inFile)
 
-	writer := wav.NewWriter(outFile, uint32(adx.totalSamples), 2, uint32(adx.sampleRate), 16)
+	// Re-write metadata
+	adx.Write(outFile)
+	outFile.Seek(int64(adx.copyrightOffset-2), 0)
+	outFile.Write([]byte("(c)CRI"))
 
 	// Calculate prediction coefficients and init structs
 	a := math.Sqrt(2) - math.Cos(2*math.Pi*float64(adx.highpassFrequency)/float64(adx.sampleRate))
@@ -60,8 +60,6 @@ func Adx2Wav(inPath string, outPath string) {
 		inFile.Seek(int64(start), 0)
 		inFile.Read(buffer)
 
-		outBuffer := make([]wav.Sample, samplesPerBlock)
-
 		// Read scale
 		for i := byte(0); i < adx.channelCount; i++ {
 			scaleBytes := make([]byte, 2)
@@ -69,6 +67,9 @@ func Adx2Wav(inPath string, outPath string) {
 			inFile.Read(scaleBytes)
 			scale[i] = binary.BigEndian.Uint16(scaleBytes)
 		}
+
+		unscaledSampleErrorNibbles := make([]int32, uint32(adx.channelCount)*uint32(samplesPerBlock)) // convert to be pedantic
+		scaledSampleErrorNibbles := make([]int32, 2*samplesPerBlock)                                  // temp
 
 		// Encode samples
 		for sampleOffset := 0; sampleOffset < int(samplesPerBlock); sampleOffset += 2 {
@@ -91,7 +92,14 @@ func Adx2Wav(inPath string, outPath string) {
 					sampleError := int32(v)
 					sampleError = (sampleError << 28) >> 28
 
+					// temp
+					scaledSampleErrorNibbles[uint32(samplesPerBlock)*uint32(i)+sampleIndex%uint32(samplesPerBlock)+uint32(nibbleIdx)] = sampleError
+
 					sampleError *= int32(scale[i])
+
+					// temp
+					unscaledSampleErrorNibbles[uint32(samplesPerBlock)*uint32(i)+sampleIndex%uint32(samplesPerBlock)+uint32(nibbleIdx)] = sampleError
+
 					sample := sampleError + int32(samplePrediction)
 
 					// Update past samples
@@ -109,33 +117,37 @@ func Adx2Wav(inPath string, outPath string) {
 				}
 			}
 
-			outBuffer[sampleOffset+0] = wav.Sample{[2]int{outSamples[0], outSamples[2]}}
-			outBuffer[sampleOffset+1] = wav.Sample{[2]int{outSamples[1], outSamples[3]}}
 			sampleIndex += 2
 		}
 
-		// Write to wav
-		writer.WriteSamples(outBuffer)
+		//fmt.Println(scale)
+		//fmt.Println(buffer)
+
+		// Generate scale and sample error bytes
+		//scale := generateScale(&adx, samplesPerBlock, unscaledSampleErrorNibbles)
+		sampleErrorBytes := generateSampleError(&adx, samplesPerBlock, unscaledSampleErrorNibbles, scale)
+
+		// Write block
+		for i := byte(0); i < adx.channelCount; i++ {
+			scaleBytes := make([]byte, 2)
+			binary.BigEndian.PutUint16(scaleBytes, scale[i])
+			outFile.Seek(int64(start+uint32(adx.blockSize)*uint32(i)), 0)
+			outFile.Write(scaleBytes)
+
+			sectionLen := len(sampleErrorBytes) / int(adx.channelCount)
+			outFile.Seek(int64(start+2+uint32(adx.blockSize)*uint32(i)), 0)
+			outFile.Write(sampleErrorBytes[sectionLen*int(i) : sectionLen*int(i+1)])
+
+			//fmt.Println(scale)
+			//fmt.Println(sampleErrorBytes[sectionLen*int(i) : sectionLen*int(i+1)])
+		}
+
+		/*
+			fmt.Println(scale)
+			fmt.Println(generateSampleErrorNibbles(&adx, samplesPerBlock, unscaledSampleErrorNibbles, scale))
+			fmt.Println("---")
+		*/
 	}
 
 	fmt.Printf("Elapsed: %v seconds", time.Now().Sub(startTime).Seconds())
-}
-
-func generateSampleErrorNibbles(adx *header, samplesPerBlock byte, unscaledSampleErrorNibbles []int32, scale []uint16) []int32 {
-
-	// Scale to 4-bit bitdepth
-	sampleErrorNibbles := make([]int32, len(unscaledSampleErrorNibbles))
-	for i := byte(0); i < adx.channelCount; i++ {
-		for j := byte(0); j < samplesPerBlock; j++ {
-
-			scaledError := byte(0)
-			if scale[i] != 0 {
-				scaledError = byte(unscaledSampleErrorNibbles[samplesPerBlock*i+j] / int32(scale[i]))
-			}
-
-			sampleErrorNibbles[samplesPerBlock*i+j] = int32(scaledError)
-		}
-	}
-
-	return sampleErrorNibbles
 }

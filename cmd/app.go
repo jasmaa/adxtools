@@ -24,6 +24,8 @@ func main() {
 	wav2adxCmd := flag.NewFlagSet("wav2adx", flag.ExitOnError)
 	adxOut := wav2adxCmd.String("o", "out.adx", "Output ADX file name")
 
+	identityCmd := flag.NewFlagSet("identity", flag.ExitOnError)
+
 	if len(os.Args) < 2 {
 		fmt.Println(usage)
 		os.Exit(1)
@@ -40,7 +42,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		adx.Adx2Wav(adx2wavCmd.Args()[0], *wavOut)
+		adx.Adx2Wav(rest[0], *wavOut)
 
 	case "wav2adx":
 		wav2adxCmd.Parse(os.Args[2:])
@@ -51,8 +53,18 @@ func main() {
 			os.Exit(1)
 		}
 
-		fmt.Printf("wav2adx: %s, %v\n", *adxOut, wav2adxCmd.Args())
-		adx.Wav2Adx(wav2adxCmd.Args()[0], *adxOut)
+		adx.Wav2Adx(rest[0], *adxOut)
+
+	case "identity":
+		identityCmd.Parse(os.Args[2:])
+		rest := identityCmd.Args()
+
+		if len(rest) < 1 {
+			identityCmd.Usage()
+			os.Exit(1)
+		}
+
+		adx.AdxIdentity(rest[0], "godsaveme.adx")
 
 	default:
 		fmt.Println(usage)
