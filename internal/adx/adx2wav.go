@@ -11,6 +11,8 @@ import (
 )
 
 // Adx2Wav converts ADX input to WAV output ignoring loops
+// TODO: Make it work for 1 channel
+// TODO: optimize
 func Adx2Wav(inPath string, outPath string) {
 
 	startTime := time.Now()
@@ -70,7 +72,7 @@ func Adx2Wav(inPath string, outPath string) {
 			scale[i] = binary.BigEndian.Uint16(scaleBytes)
 		}
 
-		// Encode samples
+		// Decode samples
 		for sampleOffset := 0; sampleOffset < int(samplesPerBlock); sampleOffset += 2 {
 
 			outSamples := make([]int, 2*adx.channelCount)
@@ -119,23 +121,4 @@ func Adx2Wav(inPath string, outPath string) {
 	}
 
 	fmt.Printf("Elapsed: %v seconds", time.Now().Sub(startTime).Seconds())
-}
-
-func generateSampleErrorNibbles(adx *header, samplesPerBlock byte, unscaledSampleErrorNibbles []int32, scale []uint16) []int32 {
-
-	// Scale to 4-bit bitdepth
-	sampleErrorNibbles := make([]int32, len(unscaledSampleErrorNibbles))
-	for i := byte(0); i < adx.channelCount; i++ {
-		for j := byte(0); j < samplesPerBlock; j++ {
-
-			scaledError := byte(0)
-			if scale[i] != 0 {
-				scaledError = byte(unscaledSampleErrorNibbles[samplesPerBlock*i+j] / int32(scale[i]))
-			}
-
-			sampleErrorNibbles[samplesPerBlock*i+j] = int32(scaledError)
-		}
-	}
-
-	return sampleErrorNibbles
 }

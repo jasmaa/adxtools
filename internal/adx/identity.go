@@ -8,7 +8,8 @@ import (
 	"time"
 )
 
-func AdxIdentity(inPath string, outPath string) {
+// Identity decodes and encodes an ADX file
+func Identity(inPath string, outPath string) {
 
 	startTime := time.Now()
 
@@ -120,12 +121,9 @@ func AdxIdentity(inPath string, outPath string) {
 			sampleIndex += 2
 		}
 
-		//fmt.Println(scale)
-		//fmt.Println(buffer)
-
 		// Generate scale and sample error bytes
-		//scale := generateScale(&adx, samplesPerBlock, unscaledSampleErrorNibbles)
-		sampleErrorBytes := generateSampleError(&adx, samplesPerBlock, unscaledSampleErrorNibbles, scale)
+		newScale := generateScale(&adx, samplesPerBlock, unscaledSampleErrorNibbles)
+		sampleErrorBytes := generateSampleError(&adx, samplesPerBlock, unscaledSampleErrorNibbles, newScale)
 
 		// Write block
 		for i := byte(0); i < adx.channelCount; i++ {
@@ -138,15 +136,7 @@ func AdxIdentity(inPath string, outPath string) {
 			outFile.Seek(int64(start+2+uint32(adx.blockSize)*uint32(i)), 0)
 			outFile.Write(sampleErrorBytes[sectionLen*int(i) : sectionLen*int(i+1)])
 
-			//fmt.Println(scale)
-			//fmt.Println(sampleErrorBytes[sectionLen*int(i) : sectionLen*int(i+1)])
 		}
-
-		/*
-			fmt.Println(scale)
-			fmt.Println(generateSampleErrorNibbles(&adx, samplesPerBlock, unscaledSampleErrorNibbles, scale))
-			fmt.Println("---")
-		*/
 	}
 
 	fmt.Printf("Elapsed: %v seconds", time.Now().Sub(startTime).Seconds())

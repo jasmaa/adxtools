@@ -11,6 +11,8 @@ import (
 )
 
 // Wav2Adx converts WAV input to ADX output
+// TODO: Make it work for 1 channel
+// TODO: Implement loop config
 func Wav2Adx(inPath string, outPath string) {
 
 	startTime := time.Now()
@@ -121,14 +123,7 @@ func Wav2Adx(inPath string, outPath string) {
 			sectionLen := len(sampleErrorBytes) / int(adx.channelCount)
 			outFile.Seek(int64(start+2+uint32(adx.blockSize)*uint32(i)), 0)
 			outFile.Write(sampleErrorBytes[sectionLen*int(i) : sectionLen*int(i+1)])
-
-			//fmt.Println(scale)
-			//fmt.Println(sampleErrorBytes[sectionLen*int(i) : sectionLen*int(i+1)])
 		}
-
-		fmt.Println(scale)
-		fmt.Println(generateSampleErrorNibbles(&adx, samplesPerBlock, unscaledSampleErrorNibbles, scale))
-		fmt.Println("---")
 	}
 
 	// Write metadata
@@ -163,7 +158,7 @@ func generateScale(adx *header, samplesPerBlock byte, unscaledSampleErrorNibbles
 		}
 
 		// Calculate scale
-		scale[i] = uint16(maxAbsErr / 8)
+		scale[i] = uint16(maxAbsErr / 7)
 		if scale[i] == 0 {
 			scale[i] = 1
 		}
@@ -184,7 +179,6 @@ func generateSampleError(adx *header, samplesPerBlock byte, unscaledSampleErrorN
 			if scale[i] != 0 {
 				scaledError = byte(unscaledSampleErrorNibbles[samplesPerBlock*i+j] / int32(scale[i]))
 			}
-			//fmt.Printf("%v\n", unscaledSampleErrorNibbles[samplesPerBlock*i+j]/int32(scale[i]))
 
 			sampleErrorNibbles[samplesPerBlock*i+j] = scaledError
 		}
