@@ -11,7 +11,6 @@ import (
 )
 
 // Adx2Wav converts ADX input to WAV output ignoring loops
-// TODO: Make it work for 1 channel
 // TODO: optimize
 func Adx2Wav(inPath string, outPath string) {
 

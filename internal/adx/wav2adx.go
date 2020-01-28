@@ -45,7 +45,7 @@ func Wav2Adx(inPath string, outPath string) {
 		sampleBitdepth:       4,
 		channelCount:         byte(format.NumChannels),
 		sampleRate:           format.SampleRate,
-		highpassFrequency:    500,
+		highpassFrequency:    2000, // make this modifiable
 		version:              3,
 		flags:                0,
 		loopAlignmentSamples: 0,
@@ -83,7 +83,7 @@ func Wav2Adx(inPath string, outPath string) {
 		// Get offset and start position
 		start := uint32(adx.copyrightOffset) + 4 + sampleIndex/uint32(samplesPerBlock)*uint32(adx.blockSize)*uint32(adx.channelCount)
 
-		unscaledSampleErrorNibbles := make([]int32, uint32(adx.channelCount)*uint32(samplesPerBlock)) // convert to be pedantic
+		scaledSampleErrorNibbles := make([]int32, uint32(adx.channelCount)*uint32(samplesPerBlock)) // convert to be pedantic
 
 		samplesCanGet := samplesPerBlock
 		if byte(len(buffer)) < samplesPerBlock {
@@ -101,7 +101,7 @@ func Wav2Adx(inPath string, outPath string) {
 				samplePrediction := coefficient[0]*float64(pastSamples[i*2+0]) + coefficient[1]*float64(pastSamples[i*2+1])
 				sample := int32(inSamples[i])
 
-				unscaledSampleErrorNibbles[samplesPerBlock*byte(i)+sampleOffset] = sample - int32(samplePrediction)
+				scaledSampleErrorNibbles[samplesPerBlock*byte(i)+sampleOffset] = sample - int32(samplePrediction)
 
 				// Update past samples
 				pastSamples[i*2+1] = pastSamples[i*2+0]
@@ -112,8 +112,8 @@ func Wav2Adx(inPath string, outPath string) {
 		}
 
 		// Generate scale and sample error bytes
-		scale := generateScale(&adx, samplesPerBlock, unscaledSampleErrorNibbles)
-		sampleErrorBytes := generateSampleError(&adx, samplesPerBlock, unscaledSampleErrorNibbles, scale)
+		scale := generateScale(&adx, samplesPerBlock, scaledSampleErrorNibbles)
+		sampleErrorBytes := generateSampleError(&adx, samplesPerBlock, scaledSampleErrorNibbles, scale)
 
 		// Write block
 		for i := byte(0); i < adx.channelCount; i++ {
@@ -139,48 +139,56 @@ func Wav2Adx(inPath string, outPath string) {
 }
 
 // Generates scale based on unscaled samples
-// TODO: Reduce noise
-func generateScale(adx *header, samplesPerBlock byte, unscaledSampleErrorNibbles []int32) []uint16 {
+func generateScale(adx *header, samplesPerBlock byte, scaledSampleErrorNibbles []int32) []uint16 {
 
 	scale := make([]uint16, adx.channelCount)
 
 	for i := byte(0); i < adx.channelCount; i++ {
 
 		// Get max reach
-		maxAbsErr := unscaledSampleErrorNibbles[samplesPerBlock*i]
+		minAbsErr := scaledSampleErrorNibbles[samplesPerBlock*i+0]
+		maxAbsErr := scaledSampleErrorNibbles[samplesPerBlock*i+0]
 		for j := byte(0); j < samplesPerBlock; j++ {
 
-			v := unscaledSampleErrorNibbles[samplesPerBlock*i+j]
-			if v < 0 {
-				v = -v
-			}
+			v := scaledSampleErrorNibbles[samplesPerBlock*i+j]
 
 			if v > maxAbsErr {
 				maxAbsErr = v
 			}
+			if v < minAbsErr {
+				minAbsErr = v
+			}
 		}
 
 		// Calculate scale
-		scale[i] = uint16(maxAbsErr / 7)
-		if scale[i] == 0 {
-			scale[i] = 1
+		if maxAbsErr > 0 && minAbsErr < 0 {
+			if maxAbsErr > -minAbsErr {
+				scale[i] = uint16(maxAbsErr / 7)
+			} else {
+				scale[i] = uint16(minAbsErr / -8)
+			}
+		} else if minAbsErr > 0 {
+			scale[i] = uint16(maxAbsErr / 7)
+		} else if maxAbsErr < 0 {
+			scale[i] = uint16(minAbsErr / -8)
 		}
 	}
 
 	return scale
 }
 
-// Scales error bytes
-func generateSampleError(adx *header, samplesPerBlock byte, unscaledSampleErrorNibbles []int32, scale []uint16) []byte {
+// Unscales and merges error bytes
+func generateSampleError(adx *header, samplesPerBlock byte, scaledSampleErrorNibbles []int32, scale []uint16) []byte {
 
-	// Scale to 4-bit bitdepth
-	sampleErrorNibbles := make([]byte, len(unscaledSampleErrorNibbles))
+	// Unscale to 4-bit bitdepth
+	sampleErrorNibbles := make([]byte, len(scaledSampleErrorNibbles))
 	for i := byte(0); i < adx.channelCount; i++ {
 		for j := byte(0); j < samplesPerBlock; j++ {
 
 			scaledError := byte(0)
 			if scale[i] != 0 {
-				scaledError = byte(unscaledSampleErrorNibbles[samplesPerBlock*i+j] / int32(scale[i]))
+
+				scaledError = byte(scaledSampleErrorNibbles[samplesPerBlock*i+j] / int32(scale[i]))
 			}
 
 			sampleErrorNibbles[samplesPerBlock*i+j] = scaledError
