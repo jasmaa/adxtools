@@ -185,13 +185,13 @@ func generateSampleError(adx *header, samplesPerBlock byte, scaledSampleErrorNib
 	for i := byte(0); i < adx.channelCount; i++ {
 		for j := byte(0); j < samplesPerBlock; j++ {
 
-			scaledError := byte(0)
+			unscaledError := byte(0)
 			if scale[i] != 0 {
 
-				scaledError = byte(scaledSampleErrorNibbles[samplesPerBlock*i+j] / int32(scale[i]))
+				unscaledError = byte(scaledSampleErrorNibbles[samplesPerBlock*i+j] / int32(scale[i]))
 			}
 
-			sampleErrorNibbles[samplesPerBlock*i+j] = scaledError
+			sampleErrorNibbles[samplesPerBlock*i+j] = unscaledError
 		}
 	}
 
