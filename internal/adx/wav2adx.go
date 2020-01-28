@@ -11,7 +11,6 @@ import (
 )
 
 // Wav2Adx converts WAV input to ADX output
-// TODO: Make it work for 1 channel
 // TODO: Implement loop config
 func Wav2Adx(inPath string, outPath string) {
 
@@ -76,7 +75,6 @@ func Wav2Adx(inPath string, outPath string) {
 	// Loop per block until EOF
 	for {
 
-		bufferCount := 0
 		buffer, err := reader.ReadSamples(uint32(samplesPerBlock)) // Read in a frame of samples
 		if err != nil {
 			break
@@ -87,17 +85,21 @@ func Wav2Adx(inPath string, outPath string) {
 
 		unscaledSampleErrorNibbles := make([]int32, uint32(adx.channelCount)*uint32(samplesPerBlock)) // convert to be pedantic
 
-		// Encode samples
-		for sampleOffset := byte(0); sampleOffset < samplesPerBlock; sampleOffset++ {
+		samplesCanGet := samplesPerBlock
+		if byte(len(buffer)) < samplesPerBlock {
+			samplesCanGet = byte(len(buffer))
+		}
 
-			inSamples := buffer[bufferCount].Values
-			bufferCount++
+		// Encode samples
+		for sampleOffset := byte(0); sampleOffset < samplesCanGet; sampleOffset++ {
+
+			inSamples := buffer[sampleOffset].Values
 
 			// Process for each channel in sample
-			for i, v := range inSamples {
+			for i := byte(0); i < adx.channelCount; i++ {
 
 				samplePrediction := coefficient[0]*float64(pastSamples[i*2+0]) + coefficient[1]*float64(pastSamples[i*2+1])
-				sample := int32(v)
+				sample := int32(inSamples[i])
 
 				unscaledSampleErrorNibbles[samplesPerBlock*byte(i)+sampleOffset] = sample - int32(samplePrediction)
 
@@ -137,6 +139,7 @@ func Wav2Adx(inPath string, outPath string) {
 }
 
 // Generates scale based on unscaled samples
+// TODO: Reduce noise
 func generateScale(adx *header, samplesPerBlock byte, unscaledSampleErrorNibbles []int32) []uint16 {
 
 	scale := make([]uint16, adx.channelCount)

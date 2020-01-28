@@ -35,7 +35,7 @@ func Adx2Wav(inPath string, outPath string) {
 	adx := header{}
 	adx.Read(inFile)
 
-	writer := wav.NewWriter(outFile, uint32(adx.totalSamples), 2, uint32(adx.sampleRate), 16)
+	writer := wav.NewWriter(outFile, uint32(adx.totalSamples), uint16(adx.channelCount), uint32(adx.sampleRate), 16)
 
 	// Calculate prediction coefficients and init structs
 	a := math.Sqrt(2) - math.Cos(2*math.Pi*float64(adx.highpassFrequency)/float64(adx.sampleRate))
@@ -111,8 +111,16 @@ func Adx2Wav(inPath string, outPath string) {
 				}
 			}
 
-			outBuffer[sampleOffset+0] = wav.Sample{[2]int{outSamples[0], outSamples[2]}}
-			outBuffer[sampleOffset+1] = wav.Sample{[2]int{outSamples[1], outSamples[3]}}
+			switch adx.channelCount {
+
+			case 1:
+				outBuffer[sampleOffset+0] = wav.Sample{[2]int{outSamples[0], 0}}
+				outBuffer[sampleOffset+1] = wav.Sample{[2]int{outSamples[1], 0}}
+			case 2:
+				outBuffer[sampleOffset+0] = wav.Sample{[2]int{outSamples[0], outSamples[2]}}
+				outBuffer[sampleOffset+1] = wav.Sample{[2]int{outSamples[1], outSamples[3]}}
+			}
+
 			sampleIndex += 2
 		}
 
