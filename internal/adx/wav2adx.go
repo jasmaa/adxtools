@@ -11,8 +11,6 @@ import (
 )
 
 // Wav2Adx converts WAV input to ADX output
-// TODO: Implement loop config
-// TODO: move data into adx header
 func Wav2Adx(inPath string, outPath string,
 	highpassFrequency uint16, loopBeginSampleIndex uint32, loopEndSampleIndex uint32) {
 
@@ -21,14 +19,14 @@ func Wav2Adx(inPath string, outPath string,
 	// Open files
 	outFile, err := os.Create(outPath)
 	if err != nil {
-		fmt.Println(err)
+		panic(err)
 	}
 
 	defer outFile.Close()
 
 	inFile, err := os.Open(inPath)
 	if err != nil {
-		fmt.Println(err)
+		panic(err)
 	}
 
 	defer inFile.Close()
@@ -41,17 +39,17 @@ func Wav2Adx(inPath string, outPath string,
 
 	// Encode ADX header
 	adx := header{
-		copyrightOffset:      404, // ???
+		copyrightOffset:      404, // arbitrary offset
 		encodingType:         0x03,
 		blockSize:            18,
 		sampleBitdepth:       4,
 		channelCount:         byte(format.NumChannels),
 		sampleRate:           format.SampleRate,
 		highpassFrequency:    highpassFrequency,
-		version:              3,
+		version:              4,
 		flags:                0,
 		loopAlignmentSamples: 0,
-		loopEnabled:          loopBeginSampleIndex > loopEndSampleIndex,
+		loopEnabled:          loopBeginSampleIndex < loopEndSampleIndex,
 		loopBeginSampleIndex: loopBeginSampleIndex,
 		loopEndSampleIndex:   loopEndSampleIndex,
 	}
@@ -71,8 +69,7 @@ func Wav2Adx(inPath string, outPath string,
 	samplesPerBlock := (adx.blockSize - 2) * 8 / adx.sampleBitdepth
 
 	// Determine looping bytes
-	adx.loopBeginByteIndex = index2byte(&adx, samplesPerBlock, adx.loopBeginSampleIndex)
-	adx.loopEndByteIndex = index2byte(&adx, samplesPerBlock, adx.loopEndSampleIndex)
+	adx.SetLoopBytes(samplesPerBlock)
 
 	// Loop per block until EOF
 	for {
@@ -206,12 +203,4 @@ func generateSampleError(adx *header, samplesPerBlock byte, scaledSampleErrorNib
 	}
 
 	return sampleErrorBytes
-}
-
-// Convert sample index to byte
-func index2byte(adx *header, samplesPerBlock byte, index uint32) uint32 {
-
-	frameStart := index / uint32(samplesPerBlock) * uint32(adx.blockSize) * uint32(adx.channelCount)
-	sampleOffset := index % uint32(samplesPerBlock)
-	return uint32(adx.copyrightOffset) + 4 + frameStart + sampleOffset/2 // hard code 4bit bitdepth
 }

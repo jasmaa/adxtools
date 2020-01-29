@@ -18,14 +18,14 @@ func Adx2Wav(inPath string, outPath string) {
 
 	outFile, err := os.Create(outPath)
 	if err != nil {
-		fmt.Println(err)
+		panic(err)
 	}
 
 	defer outFile.Close()
 
 	inFile, err := os.Open(inPath)
 	if err != nil {
-		fmt.Println(err)
+		panic(err)
 	}
 
 	defer inFile.Close()
@@ -50,10 +50,6 @@ func Adx2Wav(inPath string, outPath string) {
 
 	samplesPerBlock := (adx.blockSize - 2) * 8 / adx.sampleBitdepth
 	scale := make([]uint16, adx.channelCount)
-
-	//fmt.Printf("%+v\n", adx)
-	//fmt.Println(index2byte(&adx, samplesPerBlock, adx.loopBeginSampleIndex))
-	//fmt.Println(index2byte(&adx, samplesPerBlock, adx.loopEndSampleIndex))
 
 	// Loop per block until EOF
 	for sampleIndex < adx.totalSamples {

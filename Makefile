@@ -1,2 +1,2 @@
 all:
-	go build ./cmd/app.go
+	go build -o adxtools.exe ./cmd/app.go

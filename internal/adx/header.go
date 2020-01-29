@@ -121,3 +121,13 @@ func (header *header) Write(w *os.File) {
 	w.Seek(0, 0)
 	w.Write(buffer)
 }
+
+// SetLoopBytes calculates and sets loop bytes from loop sample indices
+func (header *header) SetLoopBytes(samplesPerBlock byte) {
+
+	beginFrame := header.loopBeginSampleIndex / uint32(samplesPerBlock) * uint32(header.blockSize) * uint32(header.channelCount)
+	header.loopBeginByteIndex = uint32(header.copyrightOffset) + 4 + beginFrame
+
+	endFrame := (header.loopEndSampleIndex/uint32(samplesPerBlock) + 1) * uint32(header.blockSize) * uint32(header.channelCount)
+	header.loopEndByteIndex = uint32(header.copyrightOffset) + 4 + endFrame
+}
