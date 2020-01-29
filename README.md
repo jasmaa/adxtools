@@ -1,6 +1,6 @@
-# adxtools
+# ADXtools
 
-Command-line tool to work with Criware ADX
+Command-line tools to work with Criware ADX
 
     Usage: adxtools [COMMAND] [OPTIONS] input
     Commands:

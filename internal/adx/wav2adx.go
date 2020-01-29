@@ -12,7 +12,9 @@ import (
 
 // Wav2Adx converts WAV input to ADX output
 // TODO: Implement loop config
-func Wav2Adx(inPath string, outPath string) {
+// TODO: move data into adx header
+func Wav2Adx(inPath string, outPath string,
+	highpassFrequency uint16, loopBeginSampleIndex uint32, loopEndSampleIndex uint32) {
 
 	startTime := time.Now()
 
@@ -45,17 +47,13 @@ func Wav2Adx(inPath string, outPath string) {
 		sampleBitdepth:       4,
 		channelCount:         byte(format.NumChannels),
 		sampleRate:           format.SampleRate,
-		highpassFrequency:    2000, // make this modifiable
+		highpassFrequency:    highpassFrequency,
 		version:              3,
 		flags:                0,
 		loopAlignmentSamples: 0,
-		loopEnabled:          false,
-
-		//TODO: Figure looping out
-		loopBeginSampleIndex: 0,
-		loopBeginByteIndex:   0,
-		loopEndSampleIndex:   0,
-		loopEndByteIndex:     0,
+		loopEnabled:          loopBeginSampleIndex > loopEndSampleIndex,
+		loopBeginSampleIndex: loopBeginSampleIndex,
+		loopEndSampleIndex:   loopEndSampleIndex,
 	}
 
 	// Calculate prediction coefficients and init structs
@@ -71,6 +69,10 @@ func Wav2Adx(inPath string, outPath string) {
 	sampleIndex := uint32(0)
 
 	samplesPerBlock := (adx.blockSize - 2) * 8 / adx.sampleBitdepth
+
+	// Determine looping bytes
+	adx.loopBeginByteIndex = index2byte(&adx, samplesPerBlock, adx.loopBeginSampleIndex)
+	adx.loopEndByteIndex = index2byte(&adx, samplesPerBlock, adx.loopEndSampleIndex)
 
 	// Loop per block until EOF
 	for {
@@ -204,4 +206,12 @@ func generateSampleError(adx *header, samplesPerBlock byte, scaledSampleErrorNib
 	}
 
 	return sampleErrorBytes
+}
+
+// Convert sample index to byte
+func index2byte(adx *header, samplesPerBlock byte, index uint32) uint32 {
+
+	frameStart := index / uint32(samplesPerBlock) * uint32(adx.blockSize) * uint32(adx.channelCount)
+	sampleOffset := index % uint32(samplesPerBlock)
+	return uint32(adx.copyrightOffset) + 4 + frameStart + sampleOffset/2 // hard code 4bit bitdepth
 }

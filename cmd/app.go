@@ -23,6 +23,9 @@ func main() {
 
 	wav2adxCmd := flag.NewFlagSet("wav2adx", flag.ExitOnError)
 	adxOut := wav2adxCmd.String("o", "out.adx", "Output ADX file name")
+	highpassFrequency := wav2adxCmd.Uint("highpass", 2000, "Highpass frequency")
+	loopBeginSampleIndex := wav2adxCmd.Uint("loopBegin", 0, "Loop begin sample index")
+	loopEndSampleIndex := wav2adxCmd.Uint("loopEnd", 0, "Loop end sample index")
 
 	if len(os.Args) < 2 {
 		fmt.Println(usage)
@@ -51,7 +54,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		adx.Wav2Adx(rest[0], *adxOut)
+		adx.Wav2Adx(rest[0], *adxOut, uint16(*highpassFrequency), uint32(*loopBeginSampleIndex), uint32(*loopEndSampleIndex))
 
 	default:
 		fmt.Println(usage)
