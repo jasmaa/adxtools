@@ -2,10 +2,6 @@
 
 Command-line tools to work with Criware ADX
 
-## Build and Run
-    make
-
-## Usage
     Usage: adxtools [COMMAND] [OPTIONS] input
     Commands:
 	    - adx2wav
